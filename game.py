@@ -23,8 +23,8 @@ TRAIL_HEIGHT  = 0.8
 CYCLE_SIZE    = 0.5
 
 # Camera offset behind/above the player
-CAM_BACK  = 10
-CAM_UP    = 5
+CAM_BACK  = 35
+CAM_UP    = 22
 CAM_LERP  = 0.12        # smoothing (0=frozen, 1=instant)
 
 PLAYER_COLOR = color.cyan
@@ -319,7 +319,7 @@ def follow_camera(player):
 
     # Rotation: camera yaw matches player so we look forward, tilt down slightly
     camera.rotation_y = _cam_yaw
-    camera.rotation_x = 18
+    camera.rotation_x = 28
 
 
 # ── HUD ───────────────────────────────────────────────────────────────────────
