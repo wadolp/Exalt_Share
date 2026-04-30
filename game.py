@@ -6,6 +6,7 @@ Controls:
   A / Left Arrow  - Turn left
   D / Right Arrow - Turn right
   (you move forward automatically)
+  Space           - Jump (clears enemy trails while airborne)
   R               - Restart
   Escape          - Quit
 """
@@ -21,6 +22,9 @@ MOVE_INTERVAL = 0.12    # seconds between grid steps
 TRAIL_WIDTH   = 0.3
 TRAIL_HEIGHT  = 0.8
 CYCLE_SIZE    = 0.5
+JUMP_VEL      = 12     # upward velocity on jump
+GRAVITY       = 28     # downward acceleration
+JUMP_CLEAR    = 0.6    # min air height to skip trail collision
 
 # Camera offset behind/above the player
 CAM_BACK  = 35
@@ -101,6 +105,8 @@ class Cycle:
         self.trail_rects = []
         self.move_timer  = 0.0
         self.pending_turn = 0
+        self.air_y   = 0.0   # extra Y from jump (0 = on ground)
+        self.vel_y   = 0.0   # vertical velocity
 
         # Body
         self.body = Entity(
@@ -138,7 +144,7 @@ class Cycle:
         return -math.degrees(math.atan2(d.x, d.z))
 
     def _sync_mesh(self):
-        p  = self.pos
+        p  = self.pos + Vec3(0, self.air_y, 0)  # lift whole cycle when airborne
         ry = self._yaw()
         d  = self.dir_vec()
         right = Vec3(d.z, 0, -d.x)
@@ -196,11 +202,25 @@ class Cycle:
             self._add_trail(self.last_pos, new_pos)
             self.last_pos = Vec3(new_pos)
             self.pos = new_pos
-            self._sync_mesh()
+
+        # Jump physics every frame (independent of grid step)
+        if self.air_y > 0 or self.vel_y > 0:
+            self.vel_y -= GRAVITY * dt
+            self.air_y += self.vel_y * dt
+            if self.air_y <= 0:
+                self.air_y = 0.0
+                self.vel_y = 0.0
+
+        self._sync_mesh()
 
     def turn(self, d):
         if self.alive:
             self.pending_turn = d
+
+    def jump(self):
+        """Launch upward if on the ground."""
+        if self.alive and self.air_y == 0:
+            self.vel_y = JUMP_VEL
 
     def check_death(self, all_cycles):
         if not self.alive:
@@ -209,16 +229,19 @@ class Cycle:
         if abs(x) >= GRID_SIZE - 1 or abs(z) >= GRID_SIZE - 1:
             self._die()
             return
-        for cyc in all_cycles:
-            own      = cyc is self
-            skip_end = 3 if own else 0
-            rects    = cyc.trail_rects
-            for i, (sx, sz, hw, hd) in enumerate(rects):
-                if own and i >= len(rects) - skip_end:
-                    continue
-                if abs(x - sx) < hw + 0.35 and abs(z - sz) < hd + 0.35:
-                    self._die()
-                    return
+        # Skip trail collision while airborne — that's the whole point of jumping!
+        airborne = self.air_y > JUMP_CLEAR
+        if not airborne:
+            for cyc in all_cycles:
+                own      = cyc is self
+                skip_end = 3 if own else 0
+                rects    = cyc.trail_rects
+                for i, (sx, sz, hw, hd) in enumerate(rects):
+                    if own and i >= len(rects) - skip_end:
+                        continue
+                    if abs(x - sx) < hw + 0.35 and abs(z - sz) < hd + 0.35:
+                        self._die()
+                        return
 
     def _die(self):
         self.alive = False
@@ -422,6 +445,8 @@ def input(key):
             gs.player.turn(-1)
         if key in ('d', 'right arrow'):
             gs.player.turn(1)
+        if key == 'space':
+            gs.player.jump()
 
 
 app.run()
